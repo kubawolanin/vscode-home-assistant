@@ -4,7 +4,7 @@
     "comment": [
         "Jinja Templates",
         "Imported from:",
-        "https://github.com/samuelcolvin/jinjahtml-vscode/blob/b8fe444cbd838afb4962bb2446e67c85e0443675/syntaxes/jinja.tmLanguage.js5on"
+        "https://github.com/samuelcolvin/jinjahtml-vscode/blob/b8fe444cbd838afb4962bb2446e67c85e0443675/syntaxes/jinja.tmLanguage.json"
     ],
     "foldingStartMarker": "({%\\s*(block|filter|for|if|macro|raw))",
     "foldingStopMarker": "({%\\s*(endblock|endfilter|endfor|endif|endmacro|endraw)\\s*%})",

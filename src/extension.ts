@@ -8,6 +8,10 @@ import {
   ServerOptions,
 } from "vscode-languageclient";
 import TelemetryReporter from "vscode-extension-telemetry";
+import {
+  getWebviewOptions,
+  TemplatePreviewPanel,
+} from "./language-service/src/panels/templatePreview";
 
 const extensionId = "vscode-home-assistant";
 const telemetryVersion = generateVersionString(
@@ -19,6 +23,8 @@ let reporter: TelemetryReporter;
 const documentSelector = [
   { language: "home-assistant", scheme: "file" },
   { language: "home-assistant", scheme: "untitled" },
+  { language: "home-assistant-jinja", scheme: "file" },
+  { language: "home-assistant-jinja", scheme: "untitled" },
 ];
 
 export async function activate(
@@ -334,6 +340,54 @@ export async function activate(
       .getConfiguration()
       .update("files.associations", { "*.yaml": "home-assistant" }, false);
   }
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "vscode-home-assistant.showTemplatePreview",
+      (sourceUri) => {
+        TemplatePreviewPanel.createOrShow(sourceUri);
+      }
+    )
+  );
+
+  if (vscode.window.registerWebviewPanelSerializer) {
+    // Make sure we register a serializer in activation event
+    vscode.window.registerWebviewPanelSerializer(
+      TemplatePreviewPanel.viewType,
+      {
+        async deserializeWebviewPanel(
+          webviewPanel: vscode.WebviewPanel,
+          state: any
+        ) {
+          console.log(`Got state: ${state}`);
+          // Reset the webview options so we use latest uri for `localResourceRoots`.
+          webviewPanel.webview.options = getWebviewOptions(
+            context.extensionUri
+          );
+          TemplatePreviewPanel.revive(webviewPanel, context.extensionUri);
+        },
+      }
+    );
+  }
+
+  vscode.workspace.onDidChangeTextDocument((changeEvent) => {
+    if (changeEvent.document.languageId === "home-assistant-jinja") {
+      console.log(`Did change: ${changeEvent.document.uri}`);
+
+      for (const change of changeEvent.contentChanges) {
+        console.log(change.range); // range of text being replaced
+        console.log(change.text); // text replacement
+      }
+
+      // changeEvent.document.getText();
+      // vscode.window.activeTextEditor.document.getText()
+      if (TemplatePreviewPanel.currentPanel) {
+        TemplatePreviewPanel.currentPanel.updateTemplate(
+          changeEvent.document.getText()
+        );
+      }
+    }
+  });
 }
 
 export async function deactivate(): Promise<void> {

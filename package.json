@@ -28,9 +28,12 @@
     "workspaceContains:**/configuration.yaml",
     "workspaceContains:**/ui-lovelace.yaml",
     "onLanguage:home-assistant",
+    "onLanguage:home-assistant-jinja",
     "onFileSystem:ftp",
     "onFileSystem:ssh",
-    "onFileSystem:sftp"
+    "onFileSystem:sftp",
+    "onCommand:vscode-home-assistant.showTemplatePreview",
+    "onWebviewPanel:templatePreview"
   ],
   "keywords": [
     "home",
@@ -94,7 +97,15 @@
       {
         "comments": "unfortunately this dummy entry is necessary for embedding to work",
         "id": "home-assistant-jinja",
-        "configuration": "./jinja-language-configuration.json"
+        "extensions": [
+          ".jinja"
+        ],
+        "aliases": [
+          "Home Assistant Jinja",
+          "homeassistantjinja",
+          "home-assistant-jinja"
+        ],
+        "configuration": "./syntaxes/jinja-language-configuration.json"
       }
     ],
     "grammars": [
@@ -123,7 +134,8 @@
         "path": "./syntaxes/home-assistant/jinja-keywords.tmLanguage",
         "scopeName": "injection.homeassistant.jinja-keywords",
         "injectTo": [
-          "source.home-assistant"
+          "source.home-assistant",
+          "source.home-assistant-jinja"
         ]
       },
       {
@@ -133,7 +145,8 @@
         "path": "./syntaxes/home-assistant/jinja-extras.tmLanguage",
         "scopeName": "injection.homeassistant.jinja-extras",
         "injectTo": [
-          "source.home-assistant"
+          "source.home-assistant",
+          "source.home-assistant-jinja"
         ]
       },
       {
@@ -184,7 +197,8 @@
         "path": "./syntaxes/home-assistant/jinja-single-quote-escape.tmLanguage",
         "scopeName": "injection.homeassistant.jinja-single-quote-escape",
         "injectTo": [
-          "source.home-assistant"
+          "source.home-assistant",
+          "source.home-assistant-jinja"
         ]
       },
       {
@@ -195,7 +209,8 @@
         "path": "./syntaxes/home-assistant/jinja-double-quote-escape.tmLanguage",
         "scopeName": "injection.homeassistant.jinja-double-quote-escape",
         "injectTo": [
-          "source.home-assistant"
+          "source.home-assistant",
+          "source.home-assistant-jinja"
         ]
       }
     ],
@@ -364,6 +379,15 @@
         "command": "vscode-home-assistant.renderTemplate",
         "title": "Render Template",
         "category": "Home Assistant"
+      },
+      {
+        "command": "vscode-home-assistant.showTemplatePreview",
+        "title": "Show Template Preview",
+        "category": "Home Assistant",
+        "icon": {
+          "light": "./assets/brackets.svg",
+          "dark": "./assets/brackets-dark.svg"
+        }
       }
     ],
     "menus": {
@@ -378,6 +402,13 @@
           "command": "vscode-home-assistant.renderTemplate",
           "group": "home-assistant",
           "when": "editorHasSelection"
+        }
+      ],
+      "editor/title": [
+        {
+          "when": "resourceLangId == home-assistant-jinja",
+          "command": "vscode-home-assistant.showTemplatePreview",
+          "group": "navigation"
         }
       ]
     },
