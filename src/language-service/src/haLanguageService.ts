@@ -1,9 +1,11 @@
+import { HassEntities, HassEntity } from "home-assistant-js-websocket";
 import {
   CompletionItem,
   CompletionList,
   Definition,
   DefinitionLink,
   Diagnostic,
+  DiagnosticSeverity,
   FormattingOptions,
   Hover,
   Position,
@@ -26,6 +28,7 @@ import { DomainCompletionContribution } from "./completionHelpers/domains";
 import { DefinitionProvider } from "./definition/definition";
 import { HomeAssistantConfiguration } from "./haConfig/haConfig";
 import { Includetype } from "./haConfig/dto";
+import { ENV_VAR, INCLUDE, INPUT, SECRET } from "./constants";
 
 export class HomeAssistantLanguageService {
   constructor(
@@ -71,6 +74,69 @@ export class HomeAssistantLanguageService {
     console.log(`Schemas updated!`);
   };
 
+  private isSymbolAnEntity = (
+    symbol: string,
+    entities: HassEntities,
+    domains: string[]
+  ) => {
+    const [, values] = Object.entries(entities);
+    return values.some(
+      (entity: HassEntity) =>
+        entity.entity_id === symbol &&
+        domains.includes(entity.entity_id.split(".")[0])
+    );
+  };
+
+  private findNonExistingEntitiesInDocument = (
+    document: TextDocument,
+    entities: HassEntities
+  ): Diagnostic[] => {
+    if (!entities) {
+      return [];
+    }
+    const domains = [
+      ...new Set(
+        Object.keys(entities).map((entity: string) => entity.split(".")[0])
+      ),
+    ];
+    const documentText = document.getText();
+    const documentLines = documentText.split("\n");
+    const diagnostics: Diagnostic[] = [];
+
+    const possibleEntityId = new RegExp(
+      `(${domains.join("|")}).([a-z_][a-z0-9_]+){3,}`,
+      "gm"
+    );
+
+    for (const line of documentLines) {
+      const match = possibleEntityId.exec(line);
+      if (match) {
+        const entityId = match[0];
+
+        if (!this.isSymbolAnEntity(entityId, entities, domains)) {
+          const index = documentText.indexOf(entityId);
+          const substring = documentText.substring(0, index);
+          const lineNumber = substring.split("\n").length - 1;
+          const offset = line.indexOf(entityId);
+
+          const range = Range.create(
+            Position.create(lineNumber, offset),
+            Position.create(lineNumber, offset + entityId.length)
+          );
+          const diagnostic: Diagnostic = {
+            severity: DiagnosticSeverity.Warning,
+            range,
+            message: `Entity ${entityId} does not exist`,
+            source: "home-assistant-language-server",
+          };
+          diagnostics.push(diagnostic);
+        }
+      }
+    }
+
+    return diagnostics;
+  };
+
   private getValidYamlTags(): string[] {
     const validTags: string[] = [];
     for (const item in Includetype) {
@@ -78,9 +144,9 @@ export class HomeAssistantLanguageService {
         validTags.push(`!${item} scalar`);
       }
     }
-    validTags.push("!env_var scalar");
-    validTags.push("!input scalar");
-    validTags.push("!secret scalar");
+    validTags.push(`${ENV_VAR} scalar`);
+    validTags.push(`${INPUT} scalar`);
+    validTags.push(`${SECRET} scalar`);
 
     return validTags;
   }
@@ -130,15 +196,15 @@ export class HomeAssistantLanguageService {
     if (!document || document.getText().length === 0) {
       return [];
     }
+    const entities = await this.haConnection.getHassEntities(false);
+    const nonExistingEntitiesDiagnostics =
+      this.findNonExistingEntitiesInDocument(document, entities);
 
     const diagnosticResults = await this.yamlLanguageService.doValidation(
       document,
       false
     );
 
-    if (!diagnosticResults) {
-      return [];
-    }
     const diagnostics: Diagnostic[] = [];
     for (const diagnosticItem of diagnosticResults) {
       // Fetch the text before the error, this might be "!secret"
@@ -152,7 +218,7 @@ export class HomeAssistantLanguageService {
       );
 
       // Skip errors about secrets, we simply have no idea what is in them
-      if (possibleSecret === "!secret") continue;
+      if (possibleSecret === SECRET) continue;
 
       // Fetch the text before the error, this might be "!input"
       const possibleInput = document.getText(
@@ -165,7 +231,7 @@ export class HomeAssistantLanguageService {
       );
 
       // Skip errors about input, that is up to the Blueprint creator
-      if (possibleInput === "!input") continue;
+      if (possibleInput === INPUT) continue;
 
       // Fetch the text before the error, this might be "!include"
       const possibleInclude = document.getText(
@@ -178,12 +244,13 @@ export class HomeAssistantLanguageService {
       );
 
       // Skip errors about include, everything can be included
-      if (possibleInclude === "!include") continue;
+      if (possibleInclude === INCLUDE) continue;
 
-      diagnosticItem.severity = 1; // Convert all warnings to errors
+      diagnosticItem.severity = DiagnosticSeverity.Error;
       diagnostics.push(diagnosticItem);
     }
-    return diagnostics;
+
+    return [...nonExistingEntitiesDiagnostics, ...diagnostics];
   };
 
   public onDocumentSymbol = (document: TextDocument): SymbolInformation[] => {

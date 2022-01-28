@@ -142,6 +142,22 @@ export class HaConnection implements IHaConnection {
     return this.hassEntities;
   };
 
+  public getHassDomains = async (): Promise<string[]> => {
+    const entities = await this.getHassEntities();
+    let domains: string[] = [];
+
+    if (!entities) {
+      return [];
+    }
+
+    for (const [, value] of Object.entries(entities)) {
+      domains.push(value.entity_id.split(".")[0]);
+    }
+    domains = [...new Set(domains)];
+
+    return domains;
+  };
+
   public async getEntityCompletions(): Promise<CompletionItem[]> {
     const entities = await this.getHassEntities();
 
@@ -180,17 +196,7 @@ export class HaConnection implements IHaConnection {
   }
 
   public async getDomainCompletions(): Promise<CompletionItem[]> {
-    const entities = await this.getHassEntities();
-    let domains = [];
-
-    if (!entities) {
-      return [];
-    }
-
-    for (const [, value] of Object.entries(entities)) {
-      domains.push(value.entity_id.split(".")[0]);
-    }
-    domains = [...new Set(domains)];
+    const domains = await this.getHassDomains();
 
     const completions: CompletionItem[] = [];
     for (const domain of domains) {

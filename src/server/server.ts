@@ -28,7 +28,7 @@ console.error = connection.window.showErrorMessage.bind(connection.window);
 const documents = new TextDocuments(TextDocument);
 documents.listen(connection);
 
-connection.onInitialize((params) => {
+connection.onInitialize(async (params) => {
   connection.console.log(
     `[Home Assistant Language Server(${process.pid})] Started and initialize received`
   );
@@ -184,7 +184,7 @@ connection.onInitialize((params) => {
   });
 
   // fire and forget
-  setTimeout(discoverFilesAndUpdateSchemas, 0);
+  await discoverFilesAndUpdateSchemas();
 
   return {
     capabilities: <ServerCapabilities>{

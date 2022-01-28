@@ -82,6 +82,8 @@ export async function activate(
     clientOptions
   );
 
+  let entities: HassEntity[] = [];
+
   // is this really needed?
   vscode.languages.setLanguageConfiguration(languageId, {
     wordPattern: /("(?:[^\\"]*(?:\\.)?)*"?)|[^\s{}[\],:]+/,
@@ -142,16 +144,21 @@ export async function activate(
         haTemplateRendererChannel.show();
       });
 
-      client.onNotification("fetch_entities_completed", async (entities) => {
-        if (entities) {
-          const values: HassEntity[] = Object.values(entities);
-          await vscode.window.showInformationMessage(
-            `Fetched ${values.length} entities`
-          );
+      client.onNotification(
+        "fetch_entities_completed",
+        async (fetchedEntities) => {
+          if (fetchedEntities) {
+            const values: HassEntity[] = Object.values(fetchedEntities);
+            await vscode.window.showInformationMessage(
+              `Fetched ${values.length} entities`
+            );
 
-          entitiesProvider.updateEntities(values);
+            entities = values;
+
+            entitiesProvider.updateEntities(values);
+          }
         }
-      });
+      );
     })
     .catch((reason) => {
       console.error(JSON.stringify(reason));
@@ -255,6 +262,36 @@ export async function activate(
       })
     );
   });
+
+  context.subscriptions.push(
+    vscode.languages.registerHoverProvider(languageId, {
+      provideHover(document, position) {
+        let hoverRange;
+        const hoverLineText = document.lineAt(position.line).text;
+        const pattern = new RegExp(
+          /([a-z_][a-z0-9_]+)\.([a-z_][a-z0-9_]+){3,}/gm
+        );
+
+        if (pattern.test(hoverLineText)) {
+          hoverRange = document.getWordRangeAtPosition(position, pattern);
+          if (hoverRange && entities.length) {
+            const entity = document.getText(hoverRange);
+            const entityObj = entities.find((e) => e.entity_id === entity);
+            if (entityObj) {
+              return new vscode.Hover(
+                `${entityObj.attributes.friendly_name || ""} - (${
+                  entityObj.state || ""
+                })`,
+                new vscode.Range(position, position)
+              );
+            }
+          }
+          return null;
+        }
+        return null;
+      },
+    })
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand(`${extensionId}.inputReload`, async (_) => {
@@ -377,6 +414,10 @@ export async function activate(
           value: suggestGroupName(selectedEntities),
           placeHolder: "For example: All Windows",
         });
+
+        if (!friendlyName) {
+          return null;
+        }
 
         // slugify friendlyName
         const id = friendlyName.toLowerCase().replace(/\s/g, "_");
